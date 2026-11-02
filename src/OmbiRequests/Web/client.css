@@ -1,0 +1,999 @@
+/* Ombi Requests for Emby - web app integration. Colors derive from the current Emby theme (currentColor). */
+
+/* The requests "page": positioned over the content area of the current view by client.js. */
+/* Background picture of the Emby page below (e.g. a series), hidden while the requests page is open. */
+body.ombi-page-open .backdropContainer {
+    display: none;
+}
+
+.ombi-page {
+    --ombi-pad: 1.5em;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 0 var(--ombi-pad) 2em;
+    position: fixed;
+}
+
+@media (min-width: 50em) {
+    .ombi-page {
+        --ombi-pad: 2.5em;
+    }
+}
+
+/* ----- toolbar ----- */
+
+.ombi-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75em 1.5em;
+    align-items: center;
+    padding: 1em 0 .5em;
+}
+
+.ombi-tabs {
+    display: flex;
+    gap: .5em;
+}
+
+.ombi-tab {
+    background: transparent;
+    border: 0;
+    border-bottom: .2em solid transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    opacity: .7;
+    padding: .4em .2em;
+}
+
+.ombi-tab:hover,
+.ombi-tab:focus {
+    opacity: 1;
+}
+
+.ombi-tab-active {
+    border-bottom-color: currentColor;
+    opacity: 1;
+}
+
+.ombi-searchbar {
+    align-items: center;
+    background: rgba(128, 128, 128, .15);
+    border-radius: 2em;
+    display: flex;
+    flex: 1 1 18em;
+    gap: .5em;
+    max-width: 40em;
+    padding: .2em .4em .2em .9em;
+}
+
+.ombi-search-input {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    flex-grow: 1;
+    font: inherit;
+    min-width: 0;
+    outline: none;
+    padding: .5em 0;
+}
+
+.ombi-search-type {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    padding: .4em;
+}
+
+.ombi-search-type option {
+    color: #000;
+}
+
+/* ----- cards ----- */
+
+.ombi-section {
+    margin-top: 1.2em;
+}
+
+.ombi-section-title {
+    margin: 0 0 .6em;
+}
+
+/* padding-top: room for the hover zoom of the first row. */
+.ombi-cards-grid {
+    display: grid;
+    gap: 1.2em .9em;
+    grid-template-columns: repeat(auto-fill, minmax(9em, 1fr));
+    padding-top: .3em;
+}
+
+/*
+ * overflow-x: auto also clips vertically, so the row gets room for the hover zoom and outline of
+ * its cards; the negative margin keeps the row aligned with the section title.
+ */
+.ombi-cards-row {
+    display: grid;
+    gap: .9em;
+    grid-auto-columns: 9.5em;
+    grid-auto-flow: column;
+    margin: -.5em -.5em 0;
+    overflow-x: auto;
+    padding: .5em .5em 1em;
+    scroll-padding: 0 .5em;
+    scroll-snap-type: x proximity;
+}
+
+.ombi-card {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+    scroll-snap-align: start;
+    text-align: start;
+}
+
+.ombi-card:focus {
+    outline: none;
+}
+
+.ombi-card:focus-visible,
+.ombi-request-row:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.ombi-card-imgbox {
+    aspect-ratio: 2 / 3;
+    background: rgba(128, 128, 128, .2);
+    border-radius: .3em;
+    overflow: hidden;
+    position: relative;
+    transition: transform .15s ease;
+}
+
+.ombi-card:hover .ombi-card-imgbox,
+.ombi-card:focus .ombi-card-imgbox {
+    box-shadow: 0 0 0 .2em currentColor;
+    transform: scale(1.03);
+}
+
+.ombi-card-img {
+    display: block;
+    height: 100%;
+    object-fit: cover;
+    width: 100%;
+}
+
+.ombi-card-noimg {
+    align-items: center;
+    display: flex;
+    font-size: 3em;
+    justify-content: center;
+    opacity: .4;
+}
+
+/*
+ * Replaces images that failed to load; keeps the size classes of the original image. "div." raises
+ * the specificity above those classes (e.g. .ombi-person-img sets display: block).
+ */
+div.ombi-img-missing {
+    align-items: center;
+    background: rgba(128, 128, 128, .2);
+    display: flex;
+    justify-content: center;
+}
+
+div.ombi-img-missing .md-icon {
+    font-size: 2em;
+    opacity: .45;
+}
+
+.ombi-card-imgbox .ombi-badge {
+    position: absolute;
+    right: .4em;
+    top: .4em;
+}
+
+.ombi-card-title {
+    font-weight: 500;
+    margin-top: .45em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ombi-card-sub {
+    font-size: .85em;
+}
+
+/* ----- status badges ----- */
+
+.ombi-badge {
+    border-radius: 1em;
+    color: #fff;
+    display: inline-block;
+    font-size: .75em;
+    font-weight: 600;
+    line-height: 1.4;
+    padding: .15em .6em;
+    white-space: nowrap;
+}
+
+.ombi-badge-None { background: rgba(110, 110, 110, .85); }
+.ombi-badge-Requested { background: #c77c02; }
+.ombi-badge-Approved { background: #1e73be; }
+.ombi-badge-PartiallyAvailable { background: #00897b; }
+.ombi-badge-Available { background: #2e7d32; }
+.ombi-badge-Denied { background: #c62828; }
+
+/* ----- details: hero ----- */
+
+.ombi-back {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    font: inherit;
+    gap: .4em;
+    margin: .8em 0;
+    opacity: .85;
+    padding: .3em 0;
+}
+
+.ombi-back:hover,
+.ombi-back:focus {
+    opacity: 1;
+}
+
+/* Always dark with light text, whatever the theme, because it sits on the backdrop image. */
+.ombi-hero {
+    background: #14181f;
+    color: #fff;
+    margin: 0 calc(-1 * var(--ombi-pad));
+    overflow: hidden;
+    position: relative;
+}
+
+.ombi-hero-backdrop {
+    background-position: center 25%;
+    background-size: cover;
+    inset: 0;
+    position: absolute;
+}
+
+.ombi-hero-backdrop::after {
+    background:
+        linear-gradient(to right, rgba(20, 24, 31, .97) 0%, rgba(20, 24, 31, .85) 40%, rgba(20, 24, 31, .45) 100%),
+        linear-gradient(to top, rgba(20, 24, 31, .9) 0%, transparent 35%);
+    content: '';
+    inset: 0;
+    position: absolute;
+}
+
+.ombi-hero-content {
+    padding: 0 var(--ombi-pad) 2.2em;
+    position: relative;
+}
+
+.ombi-hero-main {
+    align-items: center;
+    display: flex;
+    gap: 2.2em;
+}
+
+.ombi-hero-poster {
+    aspect-ratio: 2 / 3;
+    background: rgba(255, 255, 255, .08);
+    border-radius: .5em;
+    box-shadow: 0 .5em 1.5em rgba(0, 0, 0, .5);
+    flex-shrink: 0;
+    object-fit: cover;
+    width: 13em;
+}
+
+.ombi-hero-info {
+    min-width: 0;
+}
+
+.ombi-hero-title {
+    font-size: 2em;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0 0 .6em;
+}
+
+.ombi-hero-year {
+    font-weight: 400;
+    opacity: .7;
+}
+
+.ombi-chiplist {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5em;
+    margin-bottom: .8em;
+}
+
+.ombi-chip {
+    align-items: center;
+    background: rgba(0, 0, 0, .35);
+    border: 1px solid rgba(255, 255, 255, .3);
+    border-radius: .4em;
+    display: inline-flex;
+    font-size: .9em;
+    font-weight: 500;
+    gap: .35em;
+    padding: .3em .65em;
+    white-space: nowrap;
+}
+
+.ombi-chip .md-icon {
+    font-size: 1.15em;
+}
+
+.ombi-genre {
+    border: 1px solid rgba(255, 255, 255, .4);
+    border-radius: 1em;
+    font-size: .85em;
+    font-weight: 500;
+    padding: .25em .8em;
+}
+
+.ombi-tagline {
+    font-style: italic;
+    margin: .2em 0 0;
+    opacity: .85;
+}
+
+.ombi-hero .ombi-actions {
+    padding-top: 1.2em;
+}
+
+@media (max-width: 40em) {
+    .ombi-hero-main {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 1.2em;
+    }
+
+    .ombi-hero-poster {
+        width: 9em;
+    }
+
+    .ombi-hero-title {
+        font-size: 1.5em;
+    }
+}
+
+/* ----- details: sections, facts, keywords, cast ----- */
+
+.ombi-detail-section {
+    margin-top: 2em;
+}
+
+.ombi-section-heading {
+    border-inline-start: .22em solid var(--theme-accent-text-color, #52b54b);
+    font-size: 1.3em;
+    margin: 0 0 .8em;
+    padding-inline-start: .55em;
+}
+
+.ombi-overview {
+    line-height: 1.6;
+    margin: 0;
+    max-width: 60em;
+    opacity: .9;
+}
+
+.ombi-facts {
+    display: grid;
+    gap: .8em;
+    grid-template-columns: repeat(auto-fill, minmax(11em, 1fr));
+    margin-top: 2em;
+}
+
+.ombi-fact {
+    background: rgba(128, 128, 128, .1);
+    border: 1px solid rgba(128, 128, 128, .2);
+    border-radius: .4em;
+    padding: .9em 1em;
+}
+
+.ombi-fact-label {
+    font-size: .72em;
+    font-weight: 600;
+    letter-spacing: .06em;
+    margin-bottom: .5em;
+    opacity: .65;
+    text-transform: uppercase;
+}
+
+.ombi-fact-value {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    font-weight: 600;
+    gap: .3em;
+}
+
+.ombi-fact-star {
+    color: #f5c518;
+    font-size: 1.1em;
+}
+
+.ombi-keywords {
+    margin-top: 1.6em;
+}
+
+.ombi-keywords .ombi-chiplist {
+    margin-bottom: 0;
+}
+
+.ombi-tag {
+    border: 1px solid rgba(128, 128, 128, .45);
+    border-radius: 1em;
+    font-size: .85em;
+    font-weight: 500;
+    padding: .25em .8em;
+}
+
+.ombi-cast {
+    display: grid;
+    gap: 1em;
+    grid-auto-columns: 8.5em;
+    grid-auto-flow: column;
+    overflow-x: auto;
+    padding-bottom: .6em;
+}
+
+.ombi-person {
+    text-align: center;
+}
+
+.ombi-person-img {
+    aspect-ratio: 1;
+    background: rgba(128, 128, 128, .2);
+    border-radius: 50%;
+    display: block;
+    margin: 0 auto .6em;
+    object-fit: cover;
+    width: 6.5em;
+}
+
+.ombi-person-noimg {
+    align-items: center;
+    display: flex;
+    font-size: 1em;
+    justify-content: center;
+}
+
+.ombi-person-noimg .md-icon {
+    font-size: 3em;
+    opacity: .5;
+}
+
+.ombi-person-name {
+    font-size: .9em;
+    font-weight: 600;
+}
+
+.ombi-person-role {
+    font-size: .8em;
+    margin-top: .15em;
+}
+
+.ombi-denied {
+    color: #ef5350;
+}
+
+/* ----- seasons and episodes ----- */
+
+.ombi-seasons {
+    display: flex;
+    flex-direction: column;
+    gap: .4em;
+}
+
+.ombi-season {
+    background: rgba(128, 128, 128, .12);
+    border-radius: .3em;
+}
+
+.ombi-season-head {
+    align-items: center;
+    display: flex;
+    gap: .2em;
+    padding-left: .8em;
+}
+
+.ombi-season-toggle {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    display: flex;
+    flex-grow: 1;
+    font: inherit;
+    gap: .8em;
+    min-width: 0;
+    padding: .65em .8em .65em .5em;
+    text-align: start;
+}
+
+.ombi-season-name,
+.ombi-season-count,
+.ombi-episode-number,
+.ombi-episode-date {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.ombi-season-name {
+    font-weight: 600;
+}
+
+.ombi-season-badge,
+.ombi-episode-badge {
+    flex-shrink: 0;
+    margin-inline-start: auto;
+}
+
+.ombi-season-arrow {
+    flex-shrink: 0;
+    transition: transform .15s ease;
+}
+
+.ombi-season-expanded .ombi-season-arrow {
+    transform: rotate(180deg);
+}
+
+.ombi-episodes {
+    border-top: 1px solid rgba(128, 128, 128, .2);
+    display: none;
+    padding: .3em 0;
+}
+
+.ombi-season-expanded .ombi-episodes {
+    display: block;
+}
+
+.ombi-episode {
+    align-items: center;
+    cursor: pointer;
+    display: flex;
+    gap: .8em;
+    padding: .4em .8em;
+}
+
+.ombi-episode:hover {
+    background: rgba(128, 128, 128, .12);
+}
+
+.ombi-episode-disabled {
+    cursor: default;
+}
+
+.ombi-episode-disabled:hover {
+    background: transparent;
+}
+
+.ombi-episode-number {
+    min-width: 1.6em;
+    opacity: .7;
+    text-align: end;
+}
+
+.ombi-episode-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ombi-episode-date {
+    font-size: .85em;
+}
+
+/* Fixed width so the dates line up whether or not an episode has a badge. */
+.ombi-episode .ombi-episode-badge {
+    flex: 0 0 8.5em;
+    margin-inline-start: 0;
+    text-align: end;
+}
+
+.ombi-season-box,
+.ombi-episode-box {
+    cursor: pointer;
+    flex-shrink: 0;
+    height: 1.1em;
+    margin: 0;
+    width: 1.1em;
+}
+
+.ombi-season-box:disabled,
+.ombi-episode-box:disabled {
+    cursor: default;
+    opacity: .35;
+}
+
+@media (max-width: 40em) {
+    .ombi-episode-date {
+        display: none;
+    }
+}
+
+.ombi-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6em;
+    padding-top: .9em;
+}
+
+.ombi-actions .emby-button {
+    margin: 0;
+}
+
+.ombi-busy {
+    opacity: .8;
+    pointer-events: none;
+}
+
+.ombi-spin {
+    animation: ombi-spin 1s linear infinite;
+}
+
+@keyframes ombi-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ----- my requests ----- */
+
+.ombi-requests {
+    display: flex;
+    flex-direction: column;
+    gap: .5em;
+    margin-top: 1em;
+}
+
+.ombi-request-row {
+    align-items: center;
+    background: rgba(128, 128, 128, .1);
+    border-radius: .3em;
+    display: flex;
+    gap: 1em;
+    padding: .5em;
+    width: 100%;
+}
+
+.ombi-request-row:hover,
+.ombi-request-row:focus {
+    background: rgba(128, 128, 128, .22);
+}
+
+.ombi-request-img {
+    aspect-ratio: 2 / 3;
+    background: rgba(128, 128, 128, .2);
+    border-radius: .2em;
+    flex-shrink: 0;
+    object-fit: cover;
+    width: 3.2em;
+}
+
+.ombi-request-text {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.ombi-request-title {
+    font-weight: 500;
+}
+
+/* ----- misc ----- */
+
+.ombi-message,
+.ombi-loading {
+    opacity: .8;
+    padding: 1.5em 0;
+}
+
+.ombi-error {
+    color: #ef5350;
+    opacity: 1;
+}
+
+.ombi-search-section {
+    margin: .5em 0 1.5em;
+}
+
+.ombi-search-message.ombi-loading,
+.ombi-search-message.ombi-message {
+    padding: .5em 0;
+}
+
+/*
+ * The entry is a <button> carrying the classes of Emby's "Home" entry; neutralize button defaults.
+ * :where() keeps the specificity at zero, so Emby's own rules (e.g. navMenuOption-selected) still apply.
+ */
+:where(.ombi-drawer-entry) {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    text-align: start;
+    width: 100%;
+}
+
+/* Fallback look when the "Home" entry could not be found. */
+.ombi-drawer-entry:not(.navMenuOption) {
+    align-items: center;
+    display: flex;
+    gap: 1.2em;
+    padding: .9em 1.6em;
+}
+
+.ombi-drawer-entry:not(.navMenuOption):hover,
+.ombi-drawer-entry:not(.navMenuOption):focus {
+    background: rgba(128, 128, 128, .2);
+}
+
+/* The requests channel has nothing to play or mark as watched: no such buttons in its views (marked
+   by client.js). The trailer button stays, the plugin gives the titles Ombi's trailer link. */
+.ombi-channel-view .btnPlay,
+.ombi-channel-view .btnResume,
+.ombi-channel-view .btnShuffle,
+.ombi-channel-view .btnQueue,
+.ombi-channel-view .btnPlaystate,
+.ombi-channel-view .btnSyncDownload,
+.ombi-channel-view button[is="emby-playstatebutton"],
+.ombi-channel-view button[data-action="play"]:not(.card):not(.listItem),
+.ombi-channel-view button[data-action="resume"]:not(.card):not(.listItem),
+.ombi-channel-view button[data-action="playallfromhere"]:not(.card):not(.listItem),
+.ombi-channel-view button[data-action="shuffle"]:not(.card):not(.listItem),
+.ombi-channel-view button[data-action="queue"]:not(.card):not(.listItem) {
+    display: none !important;
+}
+
+/* Trailer on the requests page, played in a dialog. */
+.ombi-trailer-backdrop {
+    padding: 3.5em 1em 1em;
+}
+
+.ombi-trailer {
+    aspect-ratio: 16 / 9;
+    background: #000;
+    box-shadow: 0 .5em 2em rgba(0, 0, 0, .6);
+    width: min(100%, 1280px, calc((100vh - 4.5em) * 16 / 9));
+}
+
+.ombi-trailer-frame {
+    border: 0;
+    display: block;
+    height: 100%;
+    width: 100%;
+}
+
+.ombi-trailer-close {
+    background: transparent;
+    border: 0;
+    color: #fff;
+    cursor: pointer;
+    padding: .5em;
+    position: absolute;
+    right: .5em;
+    top: .5em;
+}
+
+.ombi-trailer-close .md-icon {
+    font-size: 1.8em;
+}
+
+/* Remaining requests (only when Ombi has a limit for the user). */
+.ombi-quota {
+    align-items: center;
+    display: flex;
+    gap: .5em;
+    opacity: .8;
+    padding: 0 0 .6em;
+}
+
+/* Buttons inside the rows of "my requests" and "all requests". */
+.ombi-row-actions {
+    display: flex;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: .4em;
+    justify-content: flex-end;
+}
+
+/* Phones: the buttons go below the title instead of pushing it out of the row. */
+@media (max-width: 40em) {
+    .ombi-request-row {
+        flex-wrap: wrap;
+    }
+
+    .ombi-request-text {
+        flex: 1 1 10em;
+    }
+
+    .ombi-row-actions {
+        flex: 1 1 100%;
+        justify-content: flex-start;
+    }
+}
+
+.ombi-row-action {
+    background: rgba(128, 128, 128, .25);
+    border: 0;
+    border-radius: .3em;
+    color: inherit;
+    cursor: pointer;
+    flex-shrink: 0;
+    font: inherit;
+    padding: .45em .9em;
+}
+
+.ombi-row-action:hover,
+.ombi-row-action:focus {
+    background: rgba(128, 128, 128, .45);
+}
+
+.ombi-row-action:disabled {
+    cursor: default;
+    opacity: .5;
+}
+
+.ombi-approve {
+    background: #43a047;
+    color: #fff;
+}
+
+.ombi-approve:hover,
+.ombi-approve:focus {
+    background: #388e3c;
+}
+
+.ombi-delete-armed {
+    background: #e53935;
+    color: #fff;
+}
+
+.ombi-delete-armed:hover,
+.ombi-delete-armed:focus {
+    background: #c62828;
+}
+
+/* Admin list "all requests": text filter, status and order. */
+.ombi-admin-bar {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5em .75em;
+    padding: .2em 0 .8em;
+}
+
+.ombi-admin-filter,
+.ombi-admin-bar select {
+    background: rgba(128, 128, 128, .15);
+    border: 1px solid rgba(128, 128, 128, .4);
+    border-radius: .3em;
+    color: inherit;
+    font: inherit;
+    padding: .4em .6em;
+}
+
+.ombi-admin-filter {
+    flex: 1 1 14em;
+    max-width: 24em;
+    min-width: 0;
+}
+
+.ombi-admin-bar option {
+    color: #000;
+}
+
+.ombi-wanted {
+    margin-top: .2em;
+}
+
+.ombi-deny-box {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4em;
+    padding-top: .5em;
+}
+
+.ombi-deny-box.hide {
+    display: none;
+}
+
+.ombi-deny-reason {
+    background: rgba(128, 128, 128, .15);
+    border: 1px solid rgba(128, 128, 128, .4);
+    border-radius: .3em;
+    color: inherit;
+    flex: 1 1 14em;
+    font: inherit;
+    padding: .4em .6em;
+}
+
+.ombi-request-row[role="button"] {
+    cursor: pointer;
+}
+
+/* Dialog "report a problem". */
+.ombi-dialog-backdrop {
+    align-items: center;
+    background: rgba(0, 0, 0, .6);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    padding: 1em;
+    position: fixed;
+    z-index: 1100;
+}
+
+.ombi-dialog {
+    background: #202020;
+    border-radius: .4em;
+    box-shadow: 0 .5em 2em rgba(0, 0, 0, .5);
+    color: #eee;
+    display: flex;
+    flex-direction: column;
+    gap: .9em;
+    max-height: 100%;
+    max-width: 32em;
+    overflow: auto;
+    padding: 1.4em;
+    width: 100%;
+}
+
+.ombi-dialog-title {
+    font-size: 1.25em;
+    font-weight: 500;
+    margin: 0 0 .2em;
+}
+
+.ombi-field {
+    display: flex;
+    flex-direction: column;
+    gap: .3em;
+}
+
+.ombi-field > span {
+    font-size: .9em;
+    opacity: .75;
+}
+
+.ombi-field input,
+.ombi-field select,
+.ombi-field textarea {
+    background: #2c2c2c;
+    border: 1px solid rgba(255, 255, 255, .2);
+    border-radius: .3em;
+    color: inherit;
+    font: inherit;
+    padding: .5em .6em;
+}
+
+.ombi-field textarea {
+    resize: vertical;
+}
+
+.ombi-dialog-buttons {
+    display: flex;
+    gap: .6em;
+    justify-content: flex-end;
+    padding-top: .3em;
+}

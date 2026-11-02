@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>OmbiRequests</RootNamespace>
+    <AssemblyName>OmbiRequests</AssemblyName>
+    <Version>0.9.0</Version>
+    <Description>Request movies and series via Ombi directly from Emby</Description>
+    <Authors>Philipp-AT</Authors>
+    <Copyright>Copyright (c) 2026 Philipp-AT</Copyright>
+    <!-- Plus an additional permission for Emby Server, see LICENSE-EXCEPTION.md. -->
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/Philipp-AT/emby-ombi-requests</RepositoryUrl>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <!-- A release DLL must not contain local paths (user and folder names): no PDB, mapped source paths. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <DebugType>none</DebugType>
+    <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediaBrowser.Server.Core" Version="4.9.1.90" />
+    <!-- Compile-time only: Emby's API uses Span/Memory types, the server ships the runtime assembly. -->
+    <PackageReference Include="System.Memory" Version="4.6.0" ExcludeAssets="runtime" PrivateAssets="all" />
+    <!-- Compile-time only: Emby ships SkiaSharp 2.88 (assembly version 2.88.0.0) for its own image processing. -->
+    <PackageReference Include="SkiaSharp" Version="2.88.9" ExcludeAssets="runtime;native" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- tests/OmbiRequests.Tests calls internal helpers directly. -->
+    <InternalsVisibleTo Include="OmbiRequests.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Web\*.js;Web\*.css;Images\*.png;thumb.png" />
+  </ItemGroup>
+
+  <!-- dotnet build -p:EmbyPluginsDir="C:\path\to\emby\programdata\plugins" copies the DLL after the build -->
+  <Target Name="CopyToEmby" AfterTargets="Build" Condition="'$(EmbyPluginsDir)' != ''">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(EmbyPluginsDir)" />
+  </Target>
+
+</Project>

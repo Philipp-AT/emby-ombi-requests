@@ -1,0 +1,21 @@
+# Build output
+bin/
+obj/
+
+# IDEs and editors
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Test and OS leftovers
+TestResults/
+*.log
+.DS_Store
+Thumbs.db
+*.DotSettings.user
+*.nupkg
+artifacts/
+desktop.ini
+.claude/

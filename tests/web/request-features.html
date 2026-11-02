@@ -1,0 +1,265 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Requests page features</title>
+<!-- Clicks through the requests page (quota, my requests with withdraw, approvals) and the buttons on a
+     library series page (missing episodes, report a problem) with a stand-in for Emby and the plugin API.
+     Run with tests/web/run-web-tests.ps1 or open in a browser. -->
+<link rel="stylesheet" href="../../src/OmbiRequests/Web/client.css">
+<style>.hide { display: none !important; } .view { position: fixed; top: 56px; left: 240px; right: 0; bottom: 0; }</style>
+</head>
+<body>
+<div class="mainDrawer"><div class="mainDrawerScrollSlider"><div class="navMenuOption drawer-home">Start</div></div></div>
+<div class="backgroundContainer withBackdrop"></div>
+<div class="backdropContainer withBackdrop">Series picture</div>
+<div class="skinHeader semiTransparent darkContentContainer"><h3 class="pageTitle">Start</h3><div class="headerRight"><button class="headerUserButton">U</button></div></div>
+<div class="view" id="v"><div class="mainDetailButtons"><button class="btnPlay">Play</button></div></div>
+<pre id="result">running…</pre>
+<script>
+var calls = [];
+function ok(data) { return Promise.resolve({ Success: true, Data: data }); }
+// Not called "status": that is a built-in property of window.
+var pluginStatus = { Configured: true, WebIntegration: true, CanRequest: true, OmbiUser: 'p', Language: 'de', ChannelName: 'Anfragen', IsAdmin: true,
+  Quotas: [{ MediaType: 'movie', Remaining: 3, Limit: 10 }, { MediaType: 'tv', Remaining: 0, Limit: 2, NextRequest: '2026-11-09T10:00:00' }] };
+var mine = [
+  { MediaType: 'movie', TmdbId: 1, Title: 'Dune', Year: 2021, Status: 'Requested', RequestedDate: '2026-11-01', CanWithdraw: true },
+  { MediaType: 'tv', TmdbId: 2, Title: 'Show', Year: 2020, Status: 'Approved', RequestedDate: '2026-10-01', Seasons: [2] }];
+var allRequests = [
+  { MediaType: 'movie', RequestId: 11, TmdbId: 1, Title: 'Dune', Year: 2021, Status: 'Requested', RequestedBy: 'Anna', RequestedDate: '2026-11-01', AlsoWantedBy: ['Max', 'Tom'] },
+  { MediaType: 'tv', RequestId: 22, TmdbId: 2, Title: 'Show', Year: 2020, Status: 'Approved', RequestedBy: 'Max', RequestedDate: '2026-11-02', Seasons: [1, 2] },
+  { MediaType: 'movie', RequestId: 33, TmdbId: 3, Title: 'Alien', Year: 1979, Status: 'Denied', DeniedReason: 'Nein', RequestedBy: 'Tom', RequestedDate: '2026-10-15' }];
+var availableRequest = { MediaType: 'movie', RequestId: 44, TmdbId: 4, Title: 'Brazil', Year: 1985, Status: 'Available', RequestedBy: 'Anna', RequestedDate: '2026-09-01' };
+var adminUrls = [];
+window.Emby = { importModule: function (p) {
+  if (p.indexOf('viewmanager') >= 0) return Promise.resolve({ default: { currentView: function () { return document.getElementById('v'); } } });
+  if (p.indexOf('toast') >= 0) return Promise.resolve({ default: function (text) { calls.push('toast:' + text); } });
+  return Promise.reject(new Error('n/a')); } };
+window.ApiClient = {
+  getCurrentUserId: function () { return 'u1'; },
+  serverId: function () { return 's1'; },
+  getUrl: function (p, q) { return p + '?' + new URLSearchParams(q || {}); },
+  getJSON: function (url) {
+    calls.push('GET ' + url.split('?')[0].replace('OmbiRequests/', ''));
+    if (url.indexOf('OmbiRequests/Status') === 0) return ok(pluginStatus);
+    if (url.indexOf('OmbiRequests/MyRequests') === 0) return ok(mine);
+    if (url.indexOf('OmbiRequests/Admin/Requests') === 0) {
+      adminUrls.push(url);
+      var list = url.indexOf('IncludeAvailable=true') >= 0 ? allRequests.concat([availableRequest]) : allRequests;
+      return ok(JSON.parse(JSON.stringify(list)));
+    }
+    if (url.indexOf('OmbiRequests/Discover') === 0) return ok([]);
+    if (url.indexOf('OmbiRequests/LibraryItem') === 0) {
+      return ok({ MediaType: 'tv', TmdbId: 1399, Title: 'GoT', MissingEpisodes: 5, CanReportIssue: true, IssueCategories: [{ Id: 1, Name: 'Ton' }, { Id: 2, Name: 'Untertitel' }] });
+    }
+    if (url.indexOf('OmbiRequests/Details') === 0) {
+      // Counts as available as a whole, but episode 2 is missing.
+      return ok({ MediaType: 'tv', TmdbId: 1399, Title: 'GoT', Status: 'Available', TrailerUrl: 'https://www.youtube.com/watch?v=bjqEWgDVPe0',
+        Seasons: [{ SeasonNumber: 1, Status: 'PartiallyAvailable', EpisodeCount: 2, Episodes: [{ EpisodeNumber: 1, Title: 'Eins', Status: 'Available' }, { EpisodeNumber: 2, Title: 'Zwei', Status: 'None' }] }] });
+    }
+    return Promise.reject(new Error('not mocked ' + url));
+  },
+  ajax: function (o) {
+    calls.push('POST ' + o.url.split('?')[0].replace('OmbiRequests/', '') + ' ' + o.data);
+    // Messages contain titles from Ombi; Emby's toast shows them as HTML.
+    var message = o.url.indexOf('Withdraw') !== -1 ? 'Die Anfrage für "<img src=x onerror=window.__xss=1>" wurde zurückgezogen.' : 'ok';
+    return ok({ Success: true, Message: message, Status: 'None' });
+  },
+  getItem: function (u, id) {
+    var items = {
+      'lib-series': { Id: 'lib-series', Type: 'Series', Name: 'GoT', ProviderIds: { Tmdb: '1399' } }
+    };
+    return items[id] ? Promise.resolve(JSON.parse(JSON.stringify(items[id]))) : Promise.reject(new Error('404'));
+  }
+};
+
+var lines = [];
+var failed = 0;
+function expect(label, actual, expected) {
+  var ok = actual === expected;
+  failed += ok ? 0 : 1;
+  lines.push((ok ? 'OK   ' : 'FAIL ') + label + ': ' + actual + (ok ? '' : ' (expected ' + expected + ')'));
+  document.getElementById('result').textContent = lines.join('\n');
+}
+function q(sel) { return document.querySelector(sel); }
+function qa(sel) { return document.querySelectorAll(sel).length; }
+function call(prefix, n) { return calls.filter(function (c) { return c.indexOf(prefix) === 0; })[n || 0]; }
+function libraryButton(prefix) {
+  return Array.prototype.filter.call(document.querySelectorAll('#v .ombi-library-button'), function (b) { return b.title.indexOf(prefix) === 0; })[0];
+}
+function adminRows() {
+  return Array.prototype.slice.call(document.querySelectorAll('.ombi-admin-request'));
+}
+function adminTitles() {
+  return adminRows().map(function (r) { return r.querySelector('.ombi-request-title').textContent; }).join('|');
+}
+function adminRow(title) {
+  return adminRows().filter(function (r) { return r.querySelector('.ombi-request-title').textContent.indexOf(title) === 0; })[0];
+}
+function rowButtons(row) {
+  return Array.prototype.map.call(row.querySelectorAll('.ombi-row-actions .ombi-row-action'), function (b) { return b.textContent; }).join(',');
+}
+function setAdmin(selector, value) {
+  var control = q(selector);
+  control.value = value;
+  control.dispatchEvent(new Event(control.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+}
+function showView(hash) {
+  location.hash = hash;
+  document.getElementById('v').dispatchEvent(new CustomEvent('viewshow', { bubbles: true }));
+}
+
+var steps = [
+  function () {
+    // Not before the script has its status and added the entry (slow machines need longer).
+    if (!q('.ombi-drawer-entry')) {
+      return false;
+    }
+
+    // Emby rebuilds its menu: the entry is back before the browser draws again (no flicker).
+    q('.mainDrawerScrollSlider').innerHTML = '<div class="navMenuOption drawer-home">Start</div>';
+    Promise.resolve().then(function () {
+      expect('menu entry back right after Emby rebuilt the menu', !!q('.ombi-drawer-entry') && q('.drawer-home').nextElementSibling === q('.ombi-drawer-entry'), true);
+    });
+  },
+  function () { q('.ombi-drawer-entry').click(); },
+  function () {
+    expect('quota line', q('.ombi-quota').classList.contains('hide') ? 'hidden' : q('.ombi-quota').textContent,
+      'info_outlineNoch 3 von 10 Filmanfragen · Noch 0 von 2 Serienanfragen (wieder ab 9.11.2026)');
+    expect('tabs for an admin', Array.prototype.map.call(document.querySelectorAll('.ombi-tab'), function (t) { return t.textContent; }).join('|'),
+      'Entdecken|Meine Anfragen|Alle Anfragen');
+    q('.ombi-tab[data-tab="mine"]').click();
+  },
+  function () {
+    expect('my requests / withdraw buttons (only pending)', qa('.ombi-request-row') + ' / ' + qa('.ombi-withdraw'), '2 / 1');
+    q('.ombi-withdraw').click();
+  },
+  function () {
+    expect('withdraw sent', call('POST Withdraw'), 'POST Withdraw {"MediaType":"movie","TmdbId":1}');
+    expect('titles in messages are escaped for the toast of Emby', calls.filter(function (c) { return c.indexOf('toast:') === 0; }).pop(),
+      'toast:Die Anfrage für &quot;&lt;img src=x onerror=window.__xss=1&gt;&quot; wurde zurückgezogen.');
+    q('.ombi-tab[data-tab="all"]').click();
+  },
+  function () {
+    expect('all requests without available ones, newest first', adminTitles() + ' / ' + q('.ombi-admin-count').textContent,
+      'Show (2020)|Dune (2021)|Alien (1979) / Anfragen: 3');
+    expect('available ones not loaded', adminUrls.join(), 'OmbiRequests/Admin/Requests?IncludeAvailable=false');
+    expect('who else wants it', adminRow('Dune').querySelector('.ombi-wanted').textContent, 'Auch gewünscht von Max, Tom');
+    expect('actions by status (approved / waiting / denied)', adminRows().map(rowButtons).join(' | '),
+      'Ablehnen,Löschen | Genehmigen,Ablehnen,Löschen | Genehmigen,Löschen');
+    setAdmin('.ombi-admin-sort', 'title');
+    expect('sorted by title', adminTitles(), 'Alien (1979)|Dune (2021)|Show (2020)');
+    setAdmin('.ombi-admin-filter', 'tom');
+  },
+  function () {
+    expect('text filter covers requester and who else wants it', adminTitles(), 'Alien (1979)|Dune (2021)');
+    setAdmin('.ombi-admin-filter', '');
+  },
+  function () {
+    setAdmin('.ombi-admin-show', 'Requested');
+    expect('only waiting for approval', adminTitles(), 'Dune (2021)');
+    setAdmin('.ombi-admin-show', 'Available');
+  },
+  function () {
+    expect('available ones loaded on demand', adminUrls[1] + ' / ' + adminTitles() + ' / ' + rowButtons(adminRow('Brazil')),
+      'OmbiRequests/Admin/Requests?IncludeAvailable=true / Brazil (1985) / Löschen');
+    setAdmin('.ombi-admin-show', 'open');
+    expect('back to all except available, without reloading', adminTitles() + ' / ' + adminUrls.length, 'Alien (1979)|Dune (2021)|Show (2020) / 2');
+    adminRow('Dune').querySelector('.ombi-approve').click();
+  },
+  function () {
+    expect('approve sent', call('POST Admin/Decide'), 'POST Admin/Decide {"MediaType":"movie","RequestId":11,"TmdbId":1,"Approve":true,"Reason":null}');
+    expect('approved row stays with new actions', adminRow('Dune').querySelector('.ombi-badge').textContent + ' / ' + rowButtons(adminRow('Dune')),
+      'Genehmigt / Ablehnen,Löschen');
+    adminRow('Show').querySelector('.ombi-deny').click();
+    expect('deny asks for a reason', !adminRow('Show').querySelector('.ombi-deny-box').classList.contains('hide'), true);
+    adminRow('Show').querySelector('.ombi-deny-reason').value = 'Schon vorhanden';
+    adminRow('Show').querySelector('.ombi-deny-confirm').click();
+  },
+  function () {
+    expect('approved request denied afterwards', call('POST Admin/Decide', 1),
+      'POST Admin/Decide {"MediaType":"tv","RequestId":22,"TmdbId":2,"Approve":false,"Reason":"Schon vorhanden"}');
+    expect('denied row shows the reason', adminRow('Show').querySelector('.ombi-denied').textContent + ' / ' + rowButtons(adminRow('Show')),
+      'Grund: Schon vorhanden / Genehmigen,Löschen');
+    adminRow('Alien').querySelector('.ombi-delete').click();
+    expect('delete asks first', adminRow('Alien').querySelector('.ombi-delete').textContent + ' / ' + (call('POST Admin/Delete') || 'not sent'),
+      'Wirklich löschen? / not sent');
+    adminRow('Alien').querySelector('.ombi-delete').click();
+  },
+  function () {
+    expect('delete sent, row gone', call('POST Admin/Delete') + ' / ' + adminTitles() + ' / ' + q('.ombi-admin-count').textContent,
+      'POST Admin/Delete {"MediaType":"movie","RequestId":33,"TmdbId":3} / Dune (2021)|Show (2020) / Anfragen: 2');
+    q('.drawer-home').click();
+    expect('navigation closes the page', !q('.ombi-page'), true);
+    showView('#!/item?id=lib-series&serverId=s1');
+  },
+  function () { },
+  function () {
+    expect('buttons on a library series', Array.prototype.map.call(document.querySelectorAll('#v .ombi-library-button'), function (b) { return b.title; }).join('|'),
+      'Fehlende Folgen anfragen (5)|Problem melden');
+    libraryButton('Problem').click();
+  },
+  function () {
+    expect('problem dialog', q('.ombi-dialog-title').textContent + ' / ' + qa('.ombi-issue-category option') + ' categories',
+      'Problem mit „GoT“ melden / 2 categories');
+    q('.ombi-issue-category').value = '2';
+    q('.ombi-issue-subject').value = 'Untertitel fehlen';
+    q('.ombi-issue-description').value = 'Folge 3';
+    q('.ombi-dialog-send').click();
+  },
+  function () {
+    expect('problem sent', call('POST Issue'), 'POST Issue {"ItemId":"lib-series","CategoryId":2,"Subject":"Untertitel fehlen","Description":"Folge 3"}');
+    expect('dialog closed', !q('.ombi-dialog'), true);
+    showView('#!/item?id=lib-series&serverId=s1');
+  },
+  function () { },
+  function () {
+    expect('no duplicate buttons on the next visit', qa('#v .ombi-library-button'), 2);
+    libraryButton('Fehlende').click();
+  },
+  function () {
+    expect('missing episodes open the details', !!q('.ombi-page .ombi-page-details:not(.hide)'), true);
+    expect('series picture and see-through header gone meanwhile', getComputedStyle(q('.backdropContainer')).display + ' ' + q('.skinHeader').classList.contains('semiTransparent'), 'none false');
+    expect('plain background instead of the darkened one', q('.backgroundContainer').classList.contains('withBackdrop'), false);
+    // Emby changes the picture and darkens again: taken off right away.
+    q('.backgroundContainer').classList.add('withBackdrop');
+    Promise.resolve().then(function () {
+      expect('stays plain when Emby darkens again', q('.backgroundContainer').classList.contains('withBackdrop'), false);
+    });
+    expect('button to send the selected episodes, also when the series counts as available', qa('.ombi-page .ombi-btn-selection'), 1);
+    q('.ombi-btn-trailer').click();
+    var frame = q('.ombi-trailer-frame');
+    expect('trailer plays in a dialog', frame ? frame.getAttribute('src') : 'no dialog', 'https://www.youtube.com/embed/bjqEWgDVPe0?autoplay=1&rel=0');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect('Escape closes it', !q('.ombi-trailer-frame'), true);
+  },
+  function () {
+    q('.drawer-home').click();
+    expect('both back after closing', getComputedStyle(q('.backdropContainer')).display + ' ' + q('.skinHeader').classList.contains('semiTransparent'), 'block true');
+    expect('darkened background back after closing', q('.backgroundContainer').classList.contains('withBackdrop'), true);
+    expect('script errors', window.__errors.join(' | ') || 'none', 'none');
+    lines.push(failed === 0 ? 'ALL PASSED' : failed + ' FAILED');
+    document.getElementById('result').textContent = lines.join('\n');
+  }
+];
+window.__errors = [];
+window.addEventListener('error', function (e) { window.__errors.push(e.message); });
+window.addEventListener('unhandledrejection', function (e) { window.__errors.push('unhandled: ' + (e.reason && e.reason.message || e.reason)); });
+// A step that returns false is not ready yet and runs again (at most 30 times).
+var i = 0;
+var retries = 0;
+setTimeout(function next() {
+  if (i < steps.length) {
+    var done = true;
+    try { done = steps[i]() !== false || ++retries > 30; } catch (e) { window.__errors.push('step ' + (i + 1) + ': ' + e.message); }
+    if (done) {
+      i++;
+      retries = 0;
+    }
+    setTimeout(next, 400);
+  }
+}, 1500);
+</script>
+<script src="../../src/OmbiRequests/Web/client.js"></script>
+</body>
+</html>

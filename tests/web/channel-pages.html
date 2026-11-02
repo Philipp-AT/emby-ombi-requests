@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Requests channel pages</title>
+<!-- Checks that client.js hides play buttons on pages of the requests channel and nowhere else.
+     Run with tests/web/run-web-tests.ps1 or open in a browser. -->
+<link rel="stylesheet" href="../../src/OmbiRequests/Web/client.css">
+</head>
+<body>
+<div class="skinHeader"><div class="headerRight"><button class="headerUserButton">U</button></div></div>
+<div class="mainDrawer"><div class="mainDrawerScrollSlider"><div class="navMenuOption drawer-home">Start</div></div></div>
+<div class="view" id="v">
+  <button class="btnPlay btnMainPlay">Play</button><button class="btnResume">Resume</button><button class="btnShuffle">Shuffle</button>
+  <button class="btnPlayTrailer">Trailer</button><button class="btnPlaystate">Played</button><button class="btnSyncDownload">Download</button>
+  <button class="card" data-action="play" id="card">Card</button>
+  <button class="cardOverlayButton" data-action="resume" id="hoverPlay">&#xe037;</button>
+  <button is="emby-playstatebutton" class="cardOverlayButton" id="cardPlayed">x</button>
+  <div class="listItem" data-action="play" id="listItem">List item</div>
+</div>
+<pre id="result">running…</pre>
+<script>
+var items = {
+  own1: { Type: 'Video', Name: 'Dune', ProviderIds: { OmbiStatus: 'None', OmbiPoster: 'x' } },
+  own2: { Type: 'Series', Name: 'GoT', ProviderIds: { OmbiStatus: 'Requested', OmbiPoster: 'x' } },
+  lib1: { Type: 'Movie', Name: 'Dune', ProviderIds: { Tmdb: '438631' } },
+  folder1: { Type: 'Folder', Name: 'Alle Filme', ProviderIds: { OmbiFolder: 'movie:all' } },
+  chan: { Type: 'Channel', Name: 'Anfragen' },
+  otherchan: { Type: 'Channel', Name: 'YouTube' }
+};
+window.Emby = { importModule: function () { return Promise.reject(new Error('n/a')); } };
+window.ApiClient = {
+  getCurrentUserId: function () { return 'u1'; },
+  serverId: function () { return 's1'; },
+  getUrl: function (p, q) { return p + '?' + new URLSearchParams(q || {}); },
+  getJSON: function (url) {
+    if (url.indexOf('OmbiRequests/Status') === 0) {
+      // The requests page is switched off for this user: the channel's pages are still marked.
+      return Promise.resolve({ Success: true, Data: { Configured: true, WebIntegration: true, CanRequest: true, OmbiUser: 'p', Language: 'de', ChannelName: 'Anfragen', PageEnabled: false } });
+    }
+    if (url.indexOf('OmbiRequests/LibraryItem') === 0) {
+      return Promise.resolve({ Success: true, Data: { MediaType: 'movie', TmdbId: 1, MissingEpisodes: 0, CanReportIssue: false, IssueCategories: [] } });
+    }
+    return Promise.reject(new Error('not mocked ' + url));
+  },
+  getItem: function (user, id) { return items[id] ? Promise.resolve(items[id]) : Promise.reject(new Error('404')); },
+  ajax: function () { return Promise.reject(new Error('n/a')); }
+};
+
+var lines = [];
+var failed = 0;
+function visible(selector) { return getComputedStyle(document.querySelector(selector)).display !== 'none'; }
+function state() {
+  return 'marked=' + document.getElementById('v').classList.contains('ombi-channel-view') +
+    ' play=' + visible('.btnPlay') + ' shuffle=' + visible('.btnShuffle') + ' trailer=' + visible('.btnPlayTrailer') +
+    ' played=' + visible('.btnPlaystate') + ' download=' + visible('.btnSyncDownload') + ' card=' + visible('#card') + ' hoverPlay=' + visible('#hoverPlay') +
+    ' cardPlayed=' + visible('#cardPlayed') + ' listItem=' + visible('#listItem');
+}
+var CHANNEL = 'marked=true play=false shuffle=false trailer=true played=false download=false card=true hoverPlay=false cardPlayed=false listItem=true';
+var NORMAL = 'marked=false play=true shuffle=true trailer=true played=true download=true card=true hoverPlay=true cardPlayed=true listItem=true';
+function expect(label, actual, expected) {
+  var ok = actual === expected;
+  failed += ok ? 0 : 1;
+  lines.push((ok ? 'OK   ' : 'FAIL ') + label + ': ' + actual + (ok ? '' : ' (expected ' + expected + ')'));
+  document.getElementById('result').textContent = lines.join('\n');
+}
+// Emby passes the route's parameters with the event (detail.params).
+function show(hash, params) {
+  location.hash = hash;
+  document.getElementById('v').dispatchEvent(new CustomEvent('viewshow', { bubbles: true, detail: params ? { params: params } : undefined }));
+}
+var steps = [
+  ['#!/item?id=own1&serverId=s1', 'title of the channel', CHANNEL],
+  ['#!/item?id=lib1&serverId=s1', 'movie of the library', NORMAL],
+  ['#!/list?parentId=folder1&serverId=s1', 'folder of the channel', CHANNEL],
+  ['#!/item?id=chan&serverId=s1', 'channel itself', CHANNEL],
+  ['#!/item?id=otherchan&serverId=s1', 'other channel', NORMAL],
+  ['#!/item?id=own1&serverId=s1', 'title of the channel again (cached)', CHANNEL],
+  ['#!/home', 'page without item', NORMAL],
+  ['#!/home', 'series of the channel, address bar still at the previous page', CHANNEL, { id: 'own2', serverId: 's1' }],
+  ['#!/item?id=own2&serverId=s1', 'library movie, address bar still at the previous page', NORMAL, { id: 'lib1', serverId: 's1' }]
+];
+var i = 0;
+setTimeout(function next() {
+  if (i >= steps.length) {
+    expect('page switched off: no menu entry', document.querySelectorAll('.ombi-drawer-entry').length, 0);
+    lines.push(failed === 0 ? 'ALL PASSED' : failed + ' FAILED');
+    document.getElementById('result').textContent = lines.join('\n');
+    return;
+  }
+  var step = steps[i++];
+  show(step[0], step[3]);
+  setTimeout(function () {
+    expect(step[1], state(), step[2]);
+    next();
+  }, 200);
+}, 1500);
+</script>
+<script src="../../src/OmbiRequests/Web/client.js"></script>
+</body>
+</html>
