@@ -2,7 +2,7 @@
 
 Ombi Requests is an Emby Server plugin that lets users request movies and series through [Ombi](https://ombi.io) without leaving Emby. In the Emby web app it adds a "Requests" page to the side menu (discover lists, search, title details, "My requests" and, for Ombi admins, "All requests") and a request section below Emby's search field. In all other Emby apps (TV, mobile, Theater) it adds a "Requests" channel in which a movie or series is requested by marking it as a favorite. Every request is made as the user's own Ombi account, so Ombi's permissions, quotas and auto-approval apply. Users never see the name "Ombi".
 
-Version 0.9.0 (pre-release).
+Version 0.9.0.
 
 ## Contents
 
@@ -426,7 +426,7 @@ The plugin is written to `src/OmbiRequests/bin/Release/netstandard2.0/OmbiReques
 dotnet build src/OmbiRequests -c Release -p:EmbyPluginsDir=/path/to/emby/plugins
 ```
 
-Release builds contain no PDB and no local source paths. GitHub Actions (`.github/workflows/build.yml`) builds and tests every push to `main`, every pull request and every `v*` tag; pushing a tag such as `v0.9.0` publishes `OmbiRequests.dll` as a release asset (0.x versions and tags with a suffix like `-beta` are marked as pre-releases).
+Release builds contain no PDB and no local source paths. GitHub Actions (`.github/workflows/build.yml`) builds and tests every push to `main`, every pull request and every `v*` tag; pushing a tag such as `v0.9.0` publishes `OmbiRequests.dll` as a release asset (tags with a suffix like `-beta` are marked as pre-releases).
 
 ## Tests
 

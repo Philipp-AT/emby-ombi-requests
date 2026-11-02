@@ -43,5 +43,5 @@ jobs:
         with:
           files: src/OmbiRequests/bin/Release/netstandard2.0/OmbiRequests.dll
           generate_release_notes: true
-          # 0.x versions and tags like v1.0.0-beta are pre-releases.
-          prerelease: ${{ startsWith(github.ref_name, 'v0.') || contains(github.ref_name, '-') }}
+          # Tags with a suffix like v1.0.0-beta are pre-releases.
+          prerelease: ${{ contains(github.ref_name, '-') }}
