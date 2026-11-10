@@ -414,6 +414,93 @@ RequestChanged("movie", 603, null, withdrawn: true);
 Check("withdrawn without details: state kept", StateOf(inPopular), "Approved");
 updater2.Dispose();
 
+// ---------------------------------------------------------------------------------------------
+Section("Placeholder videos of the movies (the Apple TV app needs a media source)");
+var placeholderDir = Path.Combine(dataDir, PlaceholderVideos.FolderName);
+var allStates = Enum.GetNames(typeof(MediaStatus));
+byte[] VideoResource(string status, string lang)
+{
+    using var stream = typeof(Plugin).Assembly.GetManifestResourceStream($"OmbiRequests.Videos.placeholder-{status}-{lang}.mp4");
+    using var memory = new MemoryStream();
+    stream?.CopyTo(memory);
+    return memory.ToArray();
+}
+
+int VideosIn(string lang) => allStates.Count(s => File.Exists(Path.Combine(placeholderDir, s + ".mp4"))
+    && File.ReadAllBytes(Path.Combine(placeholderDir, s + ".mp4")).SequenceEqual(VideoResource(s, lang)));
+Check("a video per state and language in the plugin", allStates.Count(s => VideoResource(s, "de").Length > 1000 && VideoResource(s, "en").Length > 1000), 6);
+await RootFolders();
+Check("videos written in the channel's language", VideosIn("de"), 6);
+config.Language = UiLanguage.English;
+await RootFolders();
+Check("a language switch rewrites the videos under the same paths", VideosIn("en"), 6);
+config.Language = UiLanguage.Auto;
+await RootFolders();
+Check("and back", VideosIn("de"), 6);
+
+var listedMovies = (await Children("ombirequests|list|movie:popular")).Concat(await Children("ombirequests|list|movie:all:M")).ToList();
+var movieSource = listedMovies[0].MediaSources.SingleOrDefault();
+Check("movie: one media source, the video of its state", movieSource?.Path, Path.Combine(placeholderDir, listedMovies[0].ProviderIds["OmbiStatus"] + ".mp4"));
+Check("every movie gets the video of its own state",
+    listedMovies.Count(i => i.MediaSources.Count == 1 && i.MediaSources[0].Path == Path.Combine(placeholderDir, i.ProviderIds["OmbiStatus"] + ".mp4")) + " of " + listedMovies.Count,
+    listedMovies.Count + " of " + listedMovies.Count);
+Check("states in the test lists", listedMovies.Select(i => i.ProviderIds["OmbiStatus"]).Distinct().Count() > 1, true);
+Check("the source brings its streams, so Emby does not probe the file",
+    string.Join(",", movieSource.MediaStreams.Select(s => $"{s.Type} {s.Codec} {s.Width}")) + " " + movieSource.Protocol + " " + movieSource.Container,
+    "Video h264 1920,Audio aac  File mp4");
+Check("runtime of the video", movieSource.RunTimeTicks, TimeSpan.FromSeconds(10).Ticks);
+Check("series have no media source", (await Children("ombirequests|list|tv:popular")).Sum(i => i.MediaSources.Count), 0);
+
+LibraryProxy.Updates.Clear();
+var updater3 = new ChannelItemUpdater(library, paths, json, logManager);
+string StoredSource(BaseItem item) => PlaceholderVideos.StoredPath(json, item.GetProviderId(PlaceholderVideos.MediaSourcesProviderKey));
+var placeholderMovie = new Video { ExternalId = "ombirequests|movie|700", InternalId = 70, PresentationUniqueKey = "ombirequests|movie|700" };
+placeholderMovie.SetProviderId("OmbiStatus", "Requested");
+Changed(updater3, placeholderMovie);
+Check("movie of an older version gets its video right away", StoredSource(placeholderMovie) + " " + LibraryProxy.Updates.Count, Path.Combine(placeholderDir, "Requested.mp4") + " 1");
+var storedSources = json.DeserializeFromString<MediaBrowser.Model.Dto.MediaSourceInfo[]>(
+    System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(placeholderMovie.GetProviderId("channel_item_mediasources"))));
+Check("stored the way Emby stores channel media sources (base64 JSON array)", storedSources.Length + " " + storedSources[0].Container + " " + storedSources[0].MediaStreams.Count, "1 mp4 2");
+LibraryProxy.Updates.Clear();
+Changed(updater3, placeholderMovie);
+Check("nothing saved while the video fits the state", LibraryProxy.Updates.Count, 0);
+placeholderMovie.SetProviderId("OmbiStatus", "Approved");
+Changed(updater3, placeholderMovie);
+Check("a new state (e.g. after a request) switches the video", StoredSource(placeholderMovie) + " " + LibraryProxy.Updates.Count, Path.Combine(placeholderDir, "Approved.mp4") + " 1");
+placeholderMovie.ProviderIds.Remove("OmbiStatus");
+Changed(updater3, placeholderMovie);
+Check("without a state: \"not in Emby yet\"", StoredSource(placeholderMovie), Path.Combine(placeholderDir, "None.mp4"));
+var placeholderSeries = new Series { ExternalId = "ombirequests|tv|1399|tv:popular", InternalId = 71 };
+var libraryVideo = new Video { InternalId = 72, Name = "Home video" };
+Changed(updater3, placeholderSeries);
+Changed(updater3, libraryVideo);
+Check("series and library items get no video", (StoredSource(placeholderSeries) ?? "-") + " " + (StoredSource(libraryVideo) ?? "-"), "- -");
+updater3.Dispose();
+
+var playback = new PlaceholderPlayback(Fake.Create<IUserDataManager, UserDataManagerProxy>(), logManager);
+void Playback(BaseItem item, UserDataSaveReason reason, UserItemData data) =>
+    playback.OnUserDataSaved(null, new UserDataSaveEventArgs { SaveReason = reason, User = UserManagerProxy.Boss, Item = item, UserData = data });
+UserDataManagerProxy.Saved.Clear();
+UserDataManagerProxy.Current = new UserItemData { Played = true, PlayCount = 1, LastPlayedDate = DateTimeOffset.UtcNow, IsFavorite = true };
+Playback(placeholderMovie, UserDataSaveReason.PlaybackFinished, UserDataManagerProxy.Current);
+await WaitFor(() => UserDataManagerProxy.Saved.Count > 0);
+var reset = UserDataManagerProxy.Saved.FirstOrDefault();
+Check("after the placeholder the movie is not watched, the heart stays",
+    reset.Data == null ? "(nothing saved)" : $"{reset.Data.Played} {reset.Data.PlayCount} {reset.Data.PlaybackPositionTicks} {reset.Data.LastPlayedDate == null} {reset.Data.IsFavorite} {reset.Reason}",
+    "False 0 0 True True TogglePlayed");
+UserDataManagerProxy.Saved.Clear();
+Playback(placeholderMovie, UserDataSaveReason.PlaybackProgress, new UserItemData { PlaybackPositionTicks = 50_000_000 });
+await WaitFor(() => UserDataManagerProxy.Saved.Count > 0);
+Check("no resume position either", UserDataManagerProxy.Saved.FirstOrDefault().Data?.PlaybackPositionTicks, 0L);
+UserDataManagerProxy.Saved.Clear();
+Playback(placeholderMovie, UserDataSaveReason.TogglePlayed, new UserItemData { Played = true });
+Playback(placeholderMovie, UserDataSaveReason.UpdateUserRating, new UserItemData { Played = true, IsFavorite = true });
+Playback(placeholderMovie, UserDataSaveReason.PlaybackStart, new UserItemData());
+Playback(new MediaBrowser.Controller.Entities.Movies.Movie { Name = "Dune", InternalId = 73 }, UserDataSaveReason.PlaybackFinished, new UserItemData { Played = true });
+await Task.Delay(300);
+Check("own resets, the heart, untouched states and library movies are left alone", UserDataManagerProxy.Saved.Count, 0);
+UserDataManagerProxy.Current = null;
+
 var letters = new[] { ("Ärger im Paradies", "A"), ("the Matrix", "T"), ("(500) Days of Summer", "#"), ("東京物語", "#"), (string.Empty, "#"), ("Élite", "E") };
 Check("A-Z folder of titles", string.Join(" ", letters.Select(l => OmbiChannel.LetterOf(l.Item1))), string.Join(" ", letters.Select(l => l.Item2)));
 

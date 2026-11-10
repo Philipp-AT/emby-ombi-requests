@@ -2,7 +2,7 @@
 
 Ombi Requests is an Emby Server plugin that lets users request movies and series through [Ombi](https://ombi.io) without leaving Emby. In the Emby web app it adds a "Requests" page to the side menu (discover lists, search, title details, "My requests" and, for Ombi admins, "All requests") and a request section below Emby's search field. In all other Emby apps (TV, mobile, Theater) it adds a "Requests" channel in which a movie or series is requested by marking it as a favorite. Every request is made as the user's own Ombi account, so Ombi's permissions, quotas and auto-approval apply. Users never see the name "Ombi".
 
-Version 0.9.0.
+Version 0.9.1.
 
 ## Contents
 
@@ -183,7 +183,11 @@ A refresh requested while one is running is not lost, Emby queues it. But it wou
 
 **Series** are real Emby series (`ChannelFolderType.Series`), so every app shows the usual series page with background and heart. They have no seasons or episodes: popular lists contain daily shows with thousands of episodes, and every item costs database writes and a metadata refresh, which can slow down all of Emby. The heart requests the whole series; single seasons and episodes are requested in the web app. Emby would look series up at TMDb by name after every refresh and add ids, pictures and collections; the channel therefore provides its own library options without metadata and image fetchers (`IHasChannelFeatures`), which Emby uses instead of its defaults. Each copy of a series has its own id per list (`ombirequests|tv|1399|tv:popular`), as in earlier versions, so existing items and their hearts stay.
 
-**Play button.** Emby clients show a play button on every video and folder. A plugin cannot turn it off, and channel titles have nothing to play ("No compatible streams"). In the web app, `client.js` hides Play, Shuffle, Resume, Queue, Download and "Played" on the channel's pages: the pages of movies and series, the folders and the channel's home page. It recognizes them by the provider ids `OmbiStatus` / `OmbiFolder` (the channel itself by its name), and reads which item a page shows from the data of the `viewshow` event, like Emby's own pages do, because the address bar may still show the previous page at that moment. In the other apps, and for channel titles in Emby's search results, the button stays.
+**Play button.** Emby clients show a play button on every video and folder. A plugin cannot turn it off, and channel titles have nothing to play.
+
+**Placeholder videos.** A movie without any media source breaks the Emby app on Apple TV: Emby turns the item's own source into a placeholder and drops it from the playback info, and the app fails on the details page with "undefined is not an object (evaluating '(this.currentMediaSource() || mediaSources[0]).Id')". Every movie in the channel therefore has a 10-second video as its media source that shows the request state like the poster banner, plus one line of explanation ("Not in Emby yet. Mark it as a favorite (heart) to request it.", "Requested", ...). The videos are rendered at build time (`src/OmbiRequests/Videos`, generated with `tools/generate-placeholder-videos.ps1`) and written to `ombirequests-placeholders/<state>.mp4` in Emby's data folder, in the configured language; the paths do not change with the language, so the items keep them. The media source is stored the way Emby stores channel media sources (provider id `channel_item_mediasources`, read by Emby's `ChannelManager`) and declares its streams, so Emby never probes the file. It follows the state: with the channel refresh, and right after a request through `ChannelItemUpdater`. Movies of older versions get it with the next channel refresh (Emby force-updates channel items that have no stored media source when the channel delivers one). Playing a placeholder does not mark the movie as watched and leaves no resume position (`PlaceholderPlayback` resets the play state). Series are folders and need no video.
+
+In the web app, `client.js` hides Play, Shuffle, Resume, Queue, Download and "Played" on the channel's pages: the pages of movies and series, the folders and the channel's home page. It recognizes them by the provider ids `OmbiStatus` / `OmbiFolder` (the channel itself by its name), and reads which item a page shows from the data of the `viewshow` event, like Emby's own pages do, because the address bar may still show the previous page at that moment. In the other apps, and for channel titles in Emby's search results, the button stays.
 
 **Trailers.** Titles get Ombi's trailer link (for movies without one, the first YouTube trailer from Ombi's movie details) as `RemoteTrailers`, so Emby's trailer button works in all apps. Ombi's movie lists contain no trailer link:
 
@@ -298,6 +302,7 @@ The plugin keeps its state in Emby's data folder (`/config/data` in Docker). JSO
 | `ombirequests-channel-lists.json` | The titles of the last successful load of each list, used when Ombi does not answer. |
 | `ombirequests-notifications.json` | Requests that were available at the last check, and waiting messages for users who were offline. |
 | `ombirequests-favorite-requests.json` | Which user requested which channel item with the heart; only those are withdrawn by removing the heart. |
+| `ombirequests-placeholders/` | The placeholder videos of the channel's movies, one per request state, in the configured language (written from the plugin at startup and with every channel refresh). |
 | `ombirequests-images/` | Pictures of the channel folders. |
 | `ombirequests-webapp/` | Copy of Emby's web app with the script tag (only with **Load the script automatically**). |
 
@@ -406,9 +411,12 @@ src/OmbiRequests/
                                messages, item updates, poster banners (IImageEnhancer), filter for other overlays
   Catalog/                     Catalog for "All movies"/"All series": file, import, update, states, Emby tasks
   Images/                      Pre-rendered status banners, channel and folder pictures (English/German)
+  Videos/                      Pre-rendered placeholder videos of the channel's movies (English/German)
   Web/client.js, client.css    UI inside Emby's web client
   Web/WebAppInjector.cs        Automatic script loading via DashboardSourcePath
 tools/generate-images.ps1      Regenerates banners, channel and folder pictures in Images/ (Windows)
+tools/generate-placeholder-videos.ps1
+                               Regenerates the placeholder videos in Videos/ from the banners (Windows, ffmpeg)
 tests/OmbiRequests.Tests/      Tests against a fake Ombi (dotnet run)
 tests/web/                     Browser tests of client.js
 .github/workflows/build.yml    Build, tests and releases

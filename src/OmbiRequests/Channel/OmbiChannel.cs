@@ -549,6 +549,9 @@ namespace OmbiRequests.Channel
                     // away, so that a list without titles to show (e.g. all of them already in Emby, or
                     // no catalog imported yet) is left out until it has some again.
                     cachedLists = null;
+
+                    // The movies' media sources point to these files (in the current language).
+                    PlaceholderVideos.EnsureFiles(Plugin.Instance?.DataPath, service.IsGerman, logger);
                     var lists = await GetListsAsync(service, config, cancellationToken).ConfigureAwait(false);
                     RemoveOldMovieItems();
                     result.Items.AddRange(config.ChannelCategories()
@@ -664,6 +667,16 @@ namespace OmbiRequests.Channel
             info.Type = ChannelItemType.Media;
             info.MediaType = ChannelMediaType.Video;
             info.ContentType = ChannelMediaContentType.Movie;
+
+            // Without a media source the Apple TV app fails on the details page, see PlaceholderVideos.
+            // A changed state reaches existing items with ForceUpdate (the state is part of SetForceUpdate's
+            // hash) or right away through ChannelItemUpdater.
+            var dataPath = Plugin.Instance?.DataPath;
+            if (!string.IsNullOrEmpty(dataPath))
+            {
+                info.ProviderIds.TryGetValue(ChannelItemIds.StatusProviderKey, out var status);
+                info.MediaSources = PlaceholderVideos.CreateSources(dataPath, info.Id, status);
+            }
         }
 
         private static void SetSeries(ChannelItemInfo info, int tmdbId, string category)

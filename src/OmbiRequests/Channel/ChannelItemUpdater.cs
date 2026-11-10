@@ -36,6 +36,9 @@ namespace OmbiRequests.Channel
     /// into RemoteTrailers, which channel items cannot set themselves; Emby's trailer button plays it.</item>
     /// <item>Requests: after a request the new state goes straight into the title's items, so the banner
     /// changes right away instead of after the next channel refresh.</item>
+    /// <item>Placeholder videos: a movie's media source is the video of its state (see
+    /// <see cref="PlaceholderVideos"/>); it follows the state here, also after a request, and items from
+    /// before this version get one without waiting for the channel refresh.</item>
     /// </list>
     /// </summary>
     public class ChannelItemUpdater : IServerEntryPoint
@@ -47,6 +50,7 @@ namespace OmbiRequests.Channel
         private readonly IJsonSerializer json;
         private readonly ILogger logger;
         private readonly string path;
+        private readonly string dataPath;
         private readonly object saveLock = new object();
         private readonly Lazy<ConcurrentDictionary<long, string>> appliedPosters;
         private Timer saveTimer;
@@ -56,7 +60,8 @@ namespace OmbiRequests.Channel
             this.libraryManager = libraryManager;
             this.json = json;
             logger = logManager.GetLogger(Plugin.PluginName);
-            path = Path.Combine(applicationPaths.DataPath, FileName);
+            dataPath = applicationPaths.DataPath;
+            path = Path.Combine(dataPath, FileName);
             appliedPosters = new Lazy<ConcurrentDictionary<long, string>>(Load);
         }
 
@@ -70,6 +75,9 @@ namespace OmbiRequests.Channel
             if (plugin != null)
             {
                 plugin.RequestService.RequestChanged += OnRequestChanged;
+
+                // Before anyone plays a movie; the channel refresh checks them again (language changes).
+                PlaceholderVideos.EnsureFiles(dataPath, plugin.RequestService.IsGerman, logger);
             }
         }
 
@@ -144,6 +152,18 @@ namespace OmbiRequests.Channel
                 {
                     item.RemoteTrailers = trailers;
                     update = update ?? ItemUpdateType.MetadataEdit;
+                }
+
+                // The placeholder video of the movie's current state. Compared by path only: what Emby
+                // stored may differ from a fresh serialization in details.
+                if (item is Video && ChannelItemIds.TryGetTarget(item.ExternalId, out var target) && target.MediaType == RequestService.Movie)
+                {
+                    var sources = PlaceholderVideos.CreateSources(dataPath, item.ExternalId, item.GetProviderId(ChannelItemIds.StatusProviderKey));
+                    if (PlaceholderVideos.StoredPath(json, item.GetProviderId(PlaceholderVideos.MediaSourcesProviderKey)) != sources[0].Path)
+                    {
+                        item.SetProviderId(PlaceholderVideos.MediaSourcesProviderKey, PlaceholderVideos.Encode(json, sources));
+                        update = update ?? ItemUpdateType.MetadataEdit;
+                    }
                 }
 
                 // Raises ItemUpdated again, which then finds nothing to do.

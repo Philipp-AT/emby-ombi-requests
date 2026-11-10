@@ -326,7 +326,28 @@ namespace OmbiRequests.Tests
 
     public class UserDataManagerProxy : DispatchProxy
     {
-        protected override object Invoke(MethodInfo method, object[] args) => Fake.Empty(method.ReturnType);
+        /// <summary>What GetUserData returns (null: an empty answer).</summary>
+        public static UserItemData Current;
+
+        public static readonly List<(UserItemData Data, UserDataSaveReason Reason)> Saved = new List<(UserItemData, UserDataSaveReason)>();
+
+        protected override object Invoke(MethodInfo method, object[] args)
+        {
+            switch (method.Name)
+            {
+                case "GetUserData" when Current != null:
+                    return Current;
+                case "SaveUserData":
+                    lock (Saved)
+                    {
+                        Saved.Add((args.OfType<UserItemData>().First(), args.OfType<UserDataSaveReason>().First()));
+                    }
+
+                    return null;
+                default:
+                    return Fake.Empty(method.ReturnType);
+            }
+        }
     }
 
     /// <summary>An overlay plugin like Cover Art that takes every poster.</summary>

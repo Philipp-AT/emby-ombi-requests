@@ -5,7 +5,7 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>OmbiRequests</RootNamespace>
     <AssemblyName>OmbiRequests</AssemblyName>
-    <Version>0.9.0</Version>
+    <Version>0.9.1</Version>
     <Description>Request movies and series via Ombi directly from Emby</Description>
     <Authors>Philipp-AT</Authors>
     <Copyright>Copyright (c) 2026 Philipp-AT</Copyright>
@@ -36,7 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Web\*.js;Web\*.css;Images\*.png;thumb.png" />
+    <EmbeddedResource Include="Web\*.js;Web\*.css;Images\*.png;Videos\*.mp4;thumb.png" />
   </ItemGroup>
 
   <!-- dotnet build -p:EmbyPluginsDir="C:\path\to\emby\programdata\plugins" copies the DLL after the build -->
